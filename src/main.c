@@ -6,12 +6,17 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif//_MSC_VER
 
-#include <sdl/SDL.h>
+#include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
 #include <string.h>
+#include <vitasdk.h>
+
+#ifndef sysconf
+long sysconf(int name) {return 0;}
+#endif
 
 const int wordle_padding = 10;
 const int wordle_spacing = 5;
@@ -100,8 +105,8 @@ void wordle_render_bg(SDL_Renderer* renderer) {
     for(int t = 0; t < wordle_try_count; t++) {
         for(int l = 0; l < wordle_letter_count; l++) {
             SDL_Rect r = {
-                .x = wordle_padding + l * (wordle_letter_target_size + wordle_spacing),
-                .y = wordle_padding + t * (wordle_letter_target_size + wordle_spacing),
+                .x = 300 + wordle_padding + l * (wordle_letter_target_size + wordle_spacing),
+                .y = 60 + wordle_padding + t * (wordle_letter_target_size + wordle_spacing),
                 .w = wordle_letter_target_size,
                 .h = wordle_letter_target_size
             };
@@ -117,8 +122,8 @@ void wordle_draw_word(SDL_Renderer* renderer, SDL_Texture* texture, const char* 
 
     SDL_SetRenderDrawColor(renderer, 255, 150, 150, 255);
     SDL_Rect bg_rect = {
-        .x = start_x,
-        .y = start_y,
+        .x = 300 + start_x,
+        .y = 60 + start_y,
         .w = size * len,
         .h = size
     };
@@ -138,8 +143,8 @@ void wordle_draw_word(SDL_Renderer* renderer, SDL_Texture* texture, const char* 
         };
 
         SDL_Rect dest_rect = {
-            .x = start_x + size * i,
-            .y = start_y,
+            .x = 300 + start_x + size * i,
+            .y = 60 + start_y,
             .w = size,
             .h = size
         };
@@ -178,8 +183,8 @@ void wordle_render_board(SDL_Renderer* renderer, SDL_Texture* letters_texture, c
                 break;
             }
             SDL_Rect dest_rect = {
-                .x = wordle_padding + j * (wordle_letter_target_size + wordle_spacing),
-                .y = wordle_padding + i * (wordle_letter_target_size + wordle_spacing),
+                .x = 300 + wordle_padding + j * (wordle_letter_target_size + wordle_spacing),
+                .y = 60 + wordle_padding + i * (wordle_letter_target_size + wordle_spacing),
                 .w = wordle_letter_target_size,
                 .h = wordle_letter_target_size
             };
@@ -202,13 +207,14 @@ void wordle_render_board(SDL_Renderer* renderer, SDL_Texture* letters_texture, c
         char entry_letter = board_letters[board_index];
 
         char letter = entry_letter;
+		printf("lettera %c is %x\n", letter, letter);
         if(letter < 97 || letter > 122) {
             continue;//out of render range
         }
 
         SDL_Rect dest_rect = {
-            .x = wordle_padding + i * (wordle_letter_target_size + wordle_spacing),
-            .y = wordle_padding + try_index * (wordle_letter_target_size + wordle_spacing),
+            .x = 300 + wordle_padding + i * (wordle_letter_target_size + wordle_spacing),
+            .y = 60 + wordle_padding + try_index * (wordle_letter_target_size + wordle_spacing),
             .w = wordle_letter_target_size,
             .h = wordle_letter_target_size
         };
@@ -293,8 +299,11 @@ void wordle_select_word(char* word_arr, int word_count, char* buffer) {
     }
 }
 
+char cur_word = 'a';
+uint32_t oldpad;
+
 void game_tick(game_data_t* game_data) {
-    SDL_Event e;
+    /*SDL_Event e;
     while(SDL_PollEvent(&e)) {
         if(e.type == SDL_QUIT) {
             game_data->quit = true;
@@ -345,7 +354,79 @@ void game_tick(game_data_t* game_data) {
                 }
             }
         }
-    }
+    }*/
+	
+	if (game_data->letter_index <= 0) {
+		int board_index = game_data->try_index * wordle_letter_count + game_data->letter_index;
+        game_data->full_letter_board[board_index] = cur_word;
+        game_data->full_result_board[board_index] = wordle_match_unknown;
+		game_data->letter_index = 1;
+	}
+	
+	SceCtrlData pad;
+	sceCtrlPeekBufferPositive(0, &pad, 1);
+	if ((pad.buttons & SCE_CTRL_CROSS) && (!(oldpad & SCE_CTRL_CROSS))) {
+		if(!game_data->end_game && game_data->letter_index < wordle_letter_count) { //submit letter
+			int board_index = game_data->try_index * wordle_letter_count + game_data->letter_index;
+            game_data->full_letter_board[board_index] = cur_word;
+            game_data->full_result_board[board_index] = wordle_match_unknown;
+			game_data->letter_index++;
+		}
+	} else if ((pad.buttons & SCE_CTRL_UP) && (!(oldpad & SCE_CTRL_UP))) {
+		if(!game_data->end_game) {
+			int board_index = game_data->try_index * wordle_letter_count + game_data->letter_index;
+			if (cur_word == 'a')
+				cur_word = 'z';
+			else
+				cur_word--;
+			game_data->full_letter_board[board_index - 1] = cur_word;
+			game_data->full_result_board[board_index - 1] = wordle_match_unknown;
+		}
+	}  else if ((pad.buttons & SCE_CTRL_DOWN) && (!(oldpad & SCE_CTRL_DOWN))) {
+		if(!game_data->end_game) {
+			int board_index = game_data->try_index * wordle_letter_count + game_data->letter_index;
+			if (cur_word == 'z')
+				cur_word = 'a';
+			else
+				cur_word++;
+			game_data->full_letter_board[board_index - 1] = cur_word;
+			game_data->full_result_board[board_index - 1] = wordle_match_unknown;
+		}
+	} else if ((pad.buttons & SCE_CTRL_SQUARE) && (!(oldpad & SCE_CTRL_SQUARE))) {
+		if(game_data->end_game) {//restart the game with a new word
+            wordle_select_word(game_data->all_words, game_data->word_count, game_data->correct_word);
+            game_data->end_game = game_data->won_game = false;
+            game_data->letter_index = game_data->try_index = 0;
+        }
+        else if(game_data->letter_index == wordle_letter_count) {
+            int board_offset = game_data->try_index * wordle_letter_count;
+            bool correct = wordle_try_match(
+                game_data->full_letter_board + board_offset, game_data->correct_word,//words
+                game_data->full_result_board + board_offset,//results
+                wordle_letter_count
+            );
+            if(wordle_validate_word(game_data->all_words, game_data->word_count, game_data->full_letter_board + board_offset)) {
+                game_data->try_index++;
+                if(correct) {
+                    game_data->end_game = game_data->won_game = true;
+                }
+                else {
+                    if(game_data->try_index >= wordle_try_count) {
+                        game_data->end_game = true;//lost
+                    }
+                }
+                game_data->letter_index = 0;
+            }
+            else {
+                game_data->flash_timer = 1.f;
+            }
+        }
+	} else if ((pad.buttons & SCE_CTRL_CIRCLE) && (!(oldpad & SCE_CTRL_CIRCLE))) {
+		if(!game_data->end_game && game_data->letter_index > 1) {
+            game_data->letter_index--;
+        }
+	}
+	oldpad = pad.buttons;
 
     //TIMER UPDATE
     Uint32 new_ticks = SDL_GetTicks();
@@ -415,8 +496,8 @@ int main(int argc, char* argv[]) {
         "Wordle",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        game_data.window_w,//w
-        game_data.window_h,//h
+        960,//w
+        544,//h
         SDL_WINDOW_SHOWN
     );
 
