@@ -6,7 +6,8 @@ LIBS = -lSDL2 -lvitaGL -lvorbisfile -lvorbis -logg  -lspeexdsp -lmpg123 -lScePsp
 	-ltaihen_stub -lSceShaccCg_stub -lSceNet_stub -lSceNetCtl_stub -lpng -lSceDisplay_stub -lSceGxm_stub \
 	-lSceSysmodule_stub -lSceCtrl_stub -lSceTouch_stub -lSceMotion_stub -lm -lSceAppMgr_stub \
 	-lSceAppUtil_stub -lScePgf_stub -ljpeg -lSceRtc_stub -lScePower_stub -lcurl -lssl -lcrypto -lz \
-	-lSceHid_stub -lSceIme_stub -lSceAudioIn_stub -lSceKernelDmacMgr_stub
+	-lSceHid_stub -lSceIme_stub -lSceAudioIn_stub -lSceKernelDmacMgr_stub \
+	-Wl,--whole-archive -lpthread -Wl,--no-whole-archive
 
 COMMON_OBJS =	src/main.c
 
@@ -39,7 +40,7 @@ $(TARGET).vpk: $(TARGET).velf
 	vita-elf-create $< $@
 
 $(TARGET).elf: $(OBJS)
-	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
+	$(CXX) $(CFLAGS) $^ $(LIBS) -o $@
 
 clean:
 	@rm -rf $(TARGET).velf $(TARGET).elf $(OBJS) $(TARGET).elf.unstripped.elf $(TARGET).vpk build/eboot.bin build/sce_sys/param.sfo ./param.sfo
